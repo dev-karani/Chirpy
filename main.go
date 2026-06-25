@@ -91,8 +91,35 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 	}
 
 	//respond with created user
-	respondWithJSON(w, 201, user)
+	respondWithJSON(w, 201, User{
+		ID: user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email: user.Email,
+	})
 }
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request){
+	decoder := json.NewDecoder(r.Body)
+	reqBody := chirpRequest{}
+
+	err := decoder.Decode(&reqBody)
+	if err != nil {
+		log.Printf("error decoding request body: %s", err)
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+
+	if len(reqBody.Body) > 140 {
+		respondWithError(w, 400, "Chirp is too long")
+		return
+	}
+
+	cleaned := cleanBody(reqBody.Body)
+	
+	respondWithJSON(w, 200, rs{CleanedBody: cleaned})
+}
+
+
 
 // --------- chirp validation ---------
 
@@ -124,25 +151,6 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(data)
 }
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	reqBody := chirpRequest{}
-
-	err := decoder.Decode(&reqBody)
-	if err != nil {
-		log.Printf("error decoding request body: %s", err)
-		respondWithError(w, 500, "Something went wrong")
-		return
-	}
-
-	if len(reqBody.Body) > 140 {
-		respondWithError(w, 400, "Chirp is too long")
-		return
-	}
-
-	cleaned := cleanBody(reqBody.Body)
-	respondWithJSON(w, 200, rs{CleanedBody: cleaned})
-}
 
 func cleanBody(body string) string {
 	splitWords := strings.Split(body, " ")
@@ -169,6 +177,9 @@ func main() {
 	
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("platform must be set")
+	}
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -191,18 +202,12 @@ func main() {
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	//
-	mux.HandleFunc("/admin/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/metrics", apiCfg.handlerMetrics)
 
 	//delete users
 	mux.HandleFunc("DELETE /admin/reset", apiCfg.handlerReset)
 
-	mux.HandleFunc("/api/validate_chirp", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		handlerValidateChirp(w, r)
-	})
+	// mux.HandleFunc("POST /api/chirps",)
 
 	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
