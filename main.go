@@ -7,9 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 	"strings"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
@@ -19,6 +21,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -41,10 +44,54 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform !="dev" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	err := cfg.dbQueries.DeleteAllUsers(r.Context())
+	if err !=nil {
+		log.Printf("error deleting users %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	cfg.fileserverHits.Store(0)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
-	w.Write([]byte("Hits reset to 0"))
+	w.Write([]byte("Hits reset to 0, all users delted"))
+}
+
+
+//createUser
+type User struct {
+	ID uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	Email string `json:"email"`
+}
+type createUserRequest struct {
+	Email string `json:"email"`
+}
+func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
+	//decode incoming json
+	decoder := json.NewDecoder(r.Body)
+	req := createUserRequest{}
+	if err := decoder.Decode(&req); err != nil {
+		respondWithError(w, 500, "something went wrong")
+		return
+	}
+
+
+	//2.call sqlc-generated function
+	user, err := cfg.dbQueries.CreateUser(r.Context(),req.Email)
+	if err != nil {
+		log.Printf("error creating user:%s", err)
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+
+	//respond with created user
+	respondWithJSON(w, 201, user)
 }
 
 // --------- chirp validation ---------
@@ -111,29 +158,43 @@ func cleanBody(body string) string {
 	return strings.Join(splitWords, " ")
 }
 
+
+
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		// keep going if env isn't present; tests usually provide DB_URL via environment
 		log.Printf("warning: could not load .env: %v", err)
 	}
-
+	
 	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	apiCfg := &apiConfig{}
-	apiCfg.dbQueries = database.New(db)
+	apiCfg := &apiConfig{
+		dbQueries: database.New(db),
+		platform: platform,
+	}
 
 	mux := http.NewServeMux()
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
 		http.StripPrefix("/app", http.FileServer(http.Dir("."))),
 	))
+
+	//create users
+	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+
+	//
 	mux.HandleFunc("/admin/metrics", apiCfg.handlerMetrics)
-	mux.HandleFunc("/admin/reset", apiCfg.handlerReset)
+
+	//delete users
+	mux.HandleFunc("DELETE /admin/reset", apiCfg.handlerReset)
 
 	mux.HandleFunc("/api/validate_chirp", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
