@@ -7,14 +7,15 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
+	"github.com/dev-karani/chirpy/internal/auth"
 	database "github.com/dev-karani/chirpy/internal/database"
 )
 
@@ -57,7 +58,7 @@ func (cfg *apiConfig) handlerChirpsGet (w http.ResponseWriter, r *http.Request){
 	chirps := []Chirp{}
 	for _, dbChirp := range dbChirps {
 		chirps = append(chirps, Chirp{
-			ID: dbChirp.ID,
+			ID: dbChirp.UserID,
 			CreatedAt: dbChirp.CreatedAt,
 			UpdatedAt: dbChirp.UpdatedAt,
 			Body: dbChirp.Body,
@@ -119,8 +120,10 @@ type User struct {
 }
 type createUserRequest struct {
 	Email string `json:"email"`
-	Password string `json:"password`
+	Password string `json:"password"`
+
 }
+
 func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 	//decode incoming json
 	decoder := json.NewDecoder(r.Body)
@@ -132,16 +135,16 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 
 
 	//2.call sqlc-generated function
-	hashedPassword,_ := HashPassword(req.Password)
-	var newPass string;
-	if len(hashedPassword) > 8{
-		newPass =hashedPassword
+	hashedPassword,err:= auth.HashPassword(req.Password)
+	if err != nil {
+		log.Printf("error hashing password: %s", err)
+		respondWithError(w, 500, "something went wrong")
+		return
 	}
-
 
 	user, err := cfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
 		Email: req.Email,
-		Password: newPass,
+		HashedPassword: hashedPassword,
 	})
 	if err != nil {
 		log.Printf("error creating user:%s", err)
@@ -157,9 +160,36 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 		Email: user.Email,
 	})
 }
-
-func (cfg *apiConfig) validateUser(w http.ResponseWriter, r *http.Request){
+type loginRequest struct{
+	Email string `json:"email"`
+	Password string `json:"password"`
+}
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request){
+	decoder := json.NewDecoder(r.Body)
+	req := loginRequest{}
+	if err := decoder.Decode(&req); err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
 	
+	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), req.Email)
+	if err != nil {
+		respondWithError(w, 401, "Incorrect email or password")
+		return
+	}
+
+	match, err := auth.CheckPasswordHash(req.Password, user.HashedPassword)
+	if err != nil || !match {
+		respondWithError(w, 401, "Incorrect email or password")
+		return
+	}
+
+	respondWithJSON(w, 200, User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
 }
 type createChirpRequest struct {
 	Body string `json:"body"`
@@ -297,7 +327,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)
 
 	//login
-	mux.HandleFunc("POST /api/login",)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)

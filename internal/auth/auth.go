@@ -11,13 +11,9 @@ func HashPassword(password string) (string, error){
 }
 
 func CheckPasswordHash(password, hash string) (bool, error){
-	passwordHashed, err := HashPassword(password)
+	match, err := argon2id.ComparePasswordAndHash(password, hash)
 	if err != nil {
 		return false,err
 	}
-	if hash != passwordHashed {
-		return false, nil
-	} 
-
-	return true, nil
+	return match, nil
 }
