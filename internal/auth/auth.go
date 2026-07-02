@@ -2,6 +2,10 @@ package auth
 
 import (
 	// "os/user"
+
+	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -9,7 +13,28 @@ import (
 	"github.com/google/uuid"
 )
 
-func HashPassword(password string) (string, error){
+func GetBearerToken(headers http.Header) (string, error) {
+	authString := headers.Get("Authorization")
+	//solve if its empty
+	if authString == "" {
+		return "", errors.New("missing Authorization header")
+
+	}
+	//strip the bearer prefix
+	_, after, found := strings.Cut(authString, "Bearer ")
+
+	//if no bearer prefix is found
+	if !found {
+		return "", errors.New("Authorization header must start with\"Bearer\"")
+	}
+	// if there is no token string
+	after = strings.TrimSpace(after)
+	if after == "" {
+		return "", errors.New("missing bearer token")
+	}
+	return after, nil
+}
+func HashPassword(password string) (string, error) {
 	hashedPassword, err := argon2id.CreateHash(password, argon2id.DefaultParams)
 	if err != nil {
 		return "", err
@@ -17,24 +42,24 @@ func HashPassword(password string) (string, error){
 	return hashedPassword, nil
 }
 
-func CheckPasswordHash(password, hash string) (bool, error){
+func CheckPasswordHash(password, hash string) (bool, error) {
 	match, err := argon2id.ComparePasswordAndHash(password, hash)
 	if err != nil {
-		return false,err
+		return false, err
 	}
 	return match, nil
 }
 
-func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration)(string, error){
+func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
 	//create jwt payload
 	claims := jwt.RegisteredClaims{
-		Issuer: "chirpy-access",
-		IssuedAt: jwt.NewNumericDate(time.Now().UTC()),
+		Issuer:    "chirpy-access",
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresIn)),
-		Subject: userID.String(),
+		Subject:   userID.String(),
 	}
 	//builds unsigned token -header + claims
-	token :=jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	//signs jwt token
 	signedToken, err := token.SignedString([]byte(tokenSecret))
@@ -53,8 +78,8 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	//2.rederives the signature using the secret returned by your keyfunc
 	//3. compares it against the signature embedded in the token
 	//4. also automatically checks expiresat against the current time
-	_, err := jwt.ParseWithClaims(tokenString, claims, 
-		func(t *jwt.Token)(interface{},error){
+	_, err := jwt.ParseWithClaims(tokenString, claims,
+		func(t *jwt.Token) (interface{}, error) {
 			return []byte(tokenSecret), nil
 		})
 
@@ -64,7 +89,6 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 	//pulls out the subject
 	userIDStr := claims.Subject
-	
 
 	//converts string to uuid
 	userID, err := uuid.Parse(userIDStr)
@@ -74,3 +98,4 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 
 	return userID, nil
 }
+

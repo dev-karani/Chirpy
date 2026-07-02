@@ -1,14 +1,28 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+func TestGetBearerToken(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer abc123")
+
+	got, err := GetBearerToken(headers)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	want := "abc123"
+	if got != want {
+		t.Errorf("got %q, want %q,", got, want)
+	}
+}
 func TestMakeAndValidateJWT(t *testing.T) {
-	userID :=uuid.New()
+	userID := uuid.New()
 	secret := "my-secret"
 
 	token, err := MakeJWT(userID, secret, time.Hour)
@@ -17,12 +31,12 @@ func TestMakeAndValidateJWT(t *testing.T) {
 	}
 
 	gotID, err := ValidateJWT(token, secret)
-	if err !=nil {
+	if err != nil {
 		t.Fatalf("ValidateJWT failed,%v", err)
 	}
-	
+
 	if gotID != userID {
-		t.Errorf("expected %v,%v", userID, gotID)
+		t.Errorf("got %v, want %v", userID, gotID)
 	}
 }
 
@@ -37,7 +51,6 @@ func TestExpiredJWT(t *testing.T) {
 		t.Error("expected error for expired token, got nil")
 	}
 }
-
 
 func TestWrongSecretJWT(t *testing.T) {
 	userID := uuid.New()

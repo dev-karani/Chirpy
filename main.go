@@ -23,10 +23,11 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	platform       string
+	jwtsecret      string
 }
 
-func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Request){
-	chirpIDStr :=r.PathValue("chirpID")
+func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
+	chirpIDStr := r.PathValue("chirpID")
 
 	chirpID, err := uuid.Parse(chirpIDStr)
 	if err != nil {
@@ -34,35 +35,35 @@ func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	dbChirp, err:= cfg.dbQueries.GetChirpByID(r.Context(), chirpID)
+	dbChirp, err := cfg.dbQueries.GetChirpByID(r.Context(), chirpID)
 	if err != nil {
 		respondWithError(w, 404, "chirp not found")
 		return
 	}
 
 	respondWithJSON(w, 200, Chirp{
-		ID: dbChirp.ID,
+		ID:        dbChirp.ID,
 		CreatedAt: dbChirp.CreatedAt,
 		UpdatedAt: dbChirp.UpdatedAt,
-		Body: dbChirp.Body,
-		UserID: dbChirp.UserID,
+		Body:      dbChirp.Body,
+		UserID:    dbChirp.UserID,
 	})
 }
 
-func (cfg *apiConfig) handlerChirpsGet (w http.ResponseWriter, r *http.Request){
-	dbChirps, err:= cfg.dbQueries.GetAllChirps(r.Context())
-	if err !=nil {
-		respondWithError(w,500,"couldnt retrieve chirps")
+func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
+	dbChirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "couldnt retrieve chirps")
 		return
 	}
 	chirps := []Chirp{}
 	for _, dbChirp := range dbChirps {
 		chirps = append(chirps, Chirp{
-			ID: dbChirp.UserID,
+			ID:        dbChirp.UserID,
 			CreatedAt: dbChirp.CreatedAt,
 			UpdatedAt: dbChirp.UpdatedAt,
-			Body: dbChirp.Body,
-			UserID: dbChirp.ID,
+			Body:      dbChirp.Body,
+			UserID:    dbChirp.ID,
 		})
 	}
 	respondWithJSON(w, 200, chirps)
@@ -87,13 +88,13 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-	if cfg.platform !="dev" {
+	if cfg.platform != "dev" {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
 	err := cfg.dbQueries.DeleteAllUsers(r.Context())
-	if err !=nil {
+	if err != nil {
 		log.Printf("error deleting users %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -105,26 +106,26 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 }
 
 type Chirp struct {
-	ID 			uuid.UUID `json:"id"`
-	CreatedAt	time.Time `json:"created_at"`
-	UpdatedAt	time.Time  `json:"updated_at"`
-	Body		string 		`json:"body"`
-	UserID 		uuid.UUID  	`json:"user_id"`
-}
-//createUser
-type User struct {
-	ID uuid.UUID `json:"id"`
+	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	Email string `json:"email"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+// createUser
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 type createUserRequest struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
-
 }
 
-func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	//decode incoming json
 	decoder := json.NewDecoder(r.Body)
 	req := createUserRequest{}
@@ -133,9 +134,8 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-
 	//2.call sqlc-generated function
-	hashedPassword,err:= auth.HashPassword(req.Password)
+	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
 		log.Printf("error hashing password: %s", err)
 		respondWithError(w, 500, "something went wrong")
@@ -143,7 +143,7 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 	}
 
 	user, err := cfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
-		Email: req.Email,
+		Email:          req.Email,
 		HashedPassword: hashedPassword,
 	})
 	if err != nil {
@@ -154,24 +154,26 @@ func (cfg *apiConfig)handlerCreateUser( w http.ResponseWriter, r *http.Request){
 
 	//respond with created user
 	respondWithJSON(w, 201, User{
-		ID: user.ID,
+		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
-		Email: user.Email,
+		Email:     user.Email,
 	})
 }
-type loginRequest struct{
-	Email string `json:"email"`
+
+type loginRequest struct {
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
-func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request){
+
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	req := loginRequest{}
 	if err := decoder.Decode(&req); err != nil {
 		respondWithError(w, 500, "Something went wrong")
 		return
 	}
-	
+
 	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
 		respondWithError(w, 401, "Incorrect email or password")
@@ -191,10 +193,12 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request){
 		Email:     user.Email,
 	})
 }
+
 type createChirpRequest struct {
-	Body string `json:"body"`
+	Body   string    `json:"body"`
 	UserID uuid.UUID `json:"user_id"`
 }
+
 func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	req := createChirpRequest{}
@@ -209,7 +213,6 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	cleaned := cleanBody(req.Body)
-
 
 	chirp, err := cfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleaned,
@@ -229,14 +232,10 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 	})
 }
 
-
-
-
-
 // --------- chirp validation ---------
 
 type chirpRequest struct {
-	Body string `json:"body"`
+	Body   string    `json:"body"`
 	UserID uuid.UUID `json:"user_id"`
 }
 
@@ -264,7 +263,6 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(data)
 }
 
-
 func cleanBody(body string) string {
 	splitWords := strings.Split(body, " ")
 
@@ -279,16 +277,15 @@ func cleanBody(body string) string {
 	return strings.Join(splitWords, " ")
 }
 
-
-
-
-
 func main() {
 	if err := godotenv.Load(); err != nil {
 		// keep going if env isn't present; tests usually provide DB_URL via environment
 		log.Printf("warning: could not load .env: %v", err)
 	}
-	
+	jwtSecret := os.Getenv("SECRET")
+	if jwtSecret == "" {
+		log.Fatal("missing jwt secret")
+	}
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
 	if platform == "" {
@@ -303,7 +300,8 @@ func main() {
 
 	apiCfg := &apiConfig{
 		dbQueries: database.New(db),
-		platform: platform,
+		platform:  platform,
+		jwtsecret: jwtSecret,
 	}
 
 	mux := http.NewServeMux()
@@ -321,7 +319,7 @@ func main() {
 	//delete users
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
-	// 
+	//
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsGet)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsGetByID)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)
