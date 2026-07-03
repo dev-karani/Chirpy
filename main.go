@@ -119,6 +119,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token"`
 }
 type createUserRequest struct {
 	Email    string `json:"email"`
@@ -162,8 +163,9 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds *int   `json:"expires_in_seconds,omitempty"`
 }
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
@@ -179,18 +181,39 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 401, "Incorrect email or password")
 		return
 	}
-
 	match, err := auth.CheckPasswordHash(req.Password, user.HashedPassword)
 	if err != nil || !match {
 		respondWithError(w, 401, "Incorrect email or password")
 		return
 	}
 
+	if *req.ExpiresInSeconds < 0 {
+		respondWithError(w, 401, "expires_in_seconds should be a positve int")
+		return
+	}
+	var duration time.Duration
+
+	if req.ExpiresInSeconds == nil {
+		duration = time.Hour
+	} else {
+		duration = time.Duration(*req.ExpiresInSeconds) * time.Second
+
+		if duration > time.Hour {
+			duration = time.Hour
+		}
+	}
+
+	jwtToken, err := auth.MakeJWT(user.ID, cfg.jwtsecret, duration)
+	if err != nil {
+		respondWithError(w, 500, "failed to generate jwt")
+		return
+	}
 	respondWithJSON(w, 200, User{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     jwtToken,
 	})
 }
 
@@ -207,7 +230,6 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
 		return
 	}
-
 	if len(req.Body) > 140 {
 		respondWithError(w, 400, "Chirp is too long")
 		return
@@ -282,6 +304,11 @@ func main() {
 		// keep going if env isn't present; tests usually provide DB_URL via environment
 		log.Printf("warning: could not load .env: %v", err)
 	}
+	//print the env variables
+	fmt.Println("PLATFORM=", os.Getenv("PLATFORM"))
+	fmt.Println("SECRET=", os.Getenv("SECRET"))
+	fmt.Println("DB_URL=", os.Getenv("DB_URL"))
+
 	jwtSecret := os.Getenv("SECRET")
 	if jwtSecret == "" {
 		log.Fatal("missing jwt secret")
