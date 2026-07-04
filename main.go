@@ -59,11 +59,11 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 	chirps := []Chirp{}
 	for _, dbChirp := range dbChirps {
 		chirps = append(chirps, Chirp{
-			ID:        dbChirp.UserID,
+			ID:        dbChirp.ID,
 			CreatedAt: dbChirp.CreatedAt,
 			UpdatedAt: dbChirp.UpdatedAt,
 			Body:      dbChirp.Body,
-			UserID:    dbChirp.ID,
+			UserID:    dbChirp.UserID,
 		})
 	}
 	respondWithJSON(w, 200, chirps)
@@ -187,15 +187,13 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if *req.ExpiresInSeconds < 0 {
-		respondWithError(w, 401, "expires_in_seconds should be a positve int")
+	if req.ExpiresInSeconds != nil && *req.ExpiresInSeconds < 0 {
+		respondWithError(w, 401, "expires_in_seconds should be a non-negative int")
 		return
 	}
-	var duration time.Duration
+	duration := time.Hour
 
-	if req.ExpiresInSeconds == nil {
-		duration = time.Hour
-	} else {
+	if req.ExpiresInSeconds != nil {
 		duration = time.Duration(*req.ExpiresInSeconds) * time.Second
 
 		if duration > time.Hour {
@@ -218,8 +216,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 type createChirpRequest struct {
-	Body   string    `json:"body"`
-	UserID uuid.UUID `json:"user_id"`
+	Body string `json:"body"`
 }
 
 func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
@@ -230,21 +227,33 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
 		return
 	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "error getting authbearer token")
+		return
+	}
+
+	authenticatedUserID, err := auth.ValidateJWT(token, cfg.jwtsecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing or invalid token")
+		return
+	}
+
 	if len(req.Body) > 140 {
-		respondWithError(w, 400, "Chirp is too long")
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 	cleaned := cleanBody(req.Body)
 
 	chirp, err := cfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleaned,
-		UserID: req.UserID,
+		UserID: authenticatedUserID,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp")
 		return
 	}
-
 	respondWithJSON(w, http.StatusCreated, Chirp{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
@@ -252,6 +261,7 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		Body:      chirp.Body,
 		UserID:    chirp.UserID,
 	})
+
 }
 
 // --------- chirp validation ---------
