@@ -2,8 +2,10 @@ package auth
 
 import (
 	// "os/user"
-
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +15,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// makerefreshtoken
+func MakeRefreshToken() (string, error) {
+	//generate 32bits randomly
+	key := make([]byte, 32) //make a slice of bytes of base32
+	_, err := rand.Read(key)
+	if err != nil {
+		fmt.Println("error creating randomKey")
+		return "", err
+	}
+	return hex.EncodeToString(key), nil //convert it to hex string
+}
 func GetBearerToken(headers http.Header) (string, error) {
 	authString := headers.Get("Authorization")
 	//solve if its empty
@@ -98,4 +111,3 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 
 	return userID, nil
 }
-
