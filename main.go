@@ -27,17 +27,17 @@ type apiConfig struct {
 }
 
 // updateUserShape
-type UpdatePassword struct {
+type UpdateUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 // handle update of password
-func (cfg *apiConfig) handlerUpdatePassword(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	updateReq := UpdatePassword{}
+	updateReq := UpdateUserRequest{}
 	if err := decoder.Decode(&updateReq); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to decode")
+		respondWithError(w, http.StatusBadRequest, "failed to decode")
 		return
 	}
 
@@ -61,6 +61,23 @@ func (cfg *apiConfig) handlerUpdatePassword(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	//call db with values
+	user, err := cfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{
+		Email:          updateReq.Email,
+		HashedPassword: hashedPassword,
+		ID:             authenticatedUserID,
+	})
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to update user")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
 }
 func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
 	chirpIDStr := r.PathValue("chirpID")
@@ -448,7 +465,8 @@ func main() {
 	//delete users
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
-	//
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
+	//a
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsGet)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsGetByID)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)
