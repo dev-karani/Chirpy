@@ -26,6 +26,42 @@ type apiConfig struct {
 	jwtsecret      string
 }
 
+// updateUserShape
+type UpdatePassword struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// handle update of password
+func (cfg *apiConfig) handlerUpdatePassword(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	updateReq := UpdatePassword{}
+	if err := decoder.Decode(&updateReq); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to decode")
+		return
+	}
+
+	//authenicate user
+	//get bearer token
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "failed to get token")
+		return
+	}
+
+	authenticatedUserID, err := auth.ValidateJWT(token, cfg.jwtsecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing  or invalid token")
+		return
+	}
+	//hashedPassword
+	hashedPassword, err := auth.HashPassword(updateReq.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+	//call db with values
+}
 func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
 	chirpIDStr := r.PathValue("chirpID")
 
