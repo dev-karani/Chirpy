@@ -79,6 +79,52 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		Email:     user.Email,
 	})
 }
+
+func (cfg *apiConfig) handlerDeleteChirpByID(w http.ResponseWriter, r *http.Request) {
+	//get token
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "failed to get token")
+		return
+	}
+
+	//authenicate user
+	authenticateUserID, err := auth.ValidateJWT(token, cfg.jwtsecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing or invalid token")
+		return
+	}
+
+	//get chirp id
+	chirpIDStr := r.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "invalid chirp id")
+		return
+	}
+
+	//confirm chirp exists
+	dbChirp, err := cfg.dbQueries.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "chirp not found")
+		return
+	}
+
+	//confirm db chripuserid == authethenitcates user
+	if dbChirp.UserID != authenticateUserID {
+		respondWithError(w, http.StatusForbidden, "chirp user id is not same to authenticateUserID")
+		return
+	}
+	//delete chirp
+	err = cfg.dbQueries.DeleteChirpByID(r.Context(), dbChirp.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "chirp delete failed")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
 	chirpIDStr := r.PathValue("chirpID")
 
@@ -464,7 +510,7 @@ func main() {
 
 	//delete users
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirpByID)
 	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 	//a
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsGet)
