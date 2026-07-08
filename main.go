@@ -26,7 +26,7 @@ type apiConfig struct {
 	jwtsecret      string
 }
 
-type PolkaResponse struct {
+type PolkaRequest struct {
 	Event string `json:"event"`
 	Data  struct {
 		UserID string `json:"user_id"`
@@ -35,6 +35,39 @@ type PolkaResponse struct {
 
 // post polka webhook
 func (cfg *apiConfig) handlerPostPolkaWebhook(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	polkaRes := PolkaRequest{}
+
+	if err := decoder.Decode(&polkaRes); err != nil {
+		respondWithError(w, http.StatusBadRequest, "failed to decode")
+		return
+	}
+
+	//check type of event
+	if polkaRes.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	//parse uuid
+	userID, err := uuid.Parse(polkaRes.Data.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid uuid")
+		return
+	}
+
+	//update database
+	_, err = cfg.dbQueries.UpgradeUserRed(r.Context(), userID)
+	if err == sql.ErrNoRows {
+		respondWithError(w, http.StatusNotFound, "user does not exist")
+		return
+	}
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to update column")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 
 }
 
@@ -85,10 +118,11 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	respondWithJSON(w, http.StatusOK, User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 }
 
@@ -232,6 +266,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 type createUserRequest struct {
 	Email    string `json:"email"`
@@ -267,10 +302,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 	//respond with created user
 	respondWithJSON(w, 201, User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 }
 
@@ -334,6 +370,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        jwtToken,
 		RefreshToken: refreshToken,
+		IsChirpyRed:  user.IsChirpyRed,
 	})
 }
 
@@ -525,6 +562,7 @@ func main() {
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirpByID)
 	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 	//a
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerPostPolkaWebhook)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsGet)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsGetByID)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)

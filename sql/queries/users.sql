@@ -25,9 +25,9 @@ SET
 WHERE id = $3
 RETURNING *;
 
--- name: UpgradeUserRed :exec
+-- name: UpgradeUserRed :one
 UPDATE users
 SET is_chirpy_red = TRUE
-WHERE id = $1;
-
+WHERE id = $1
+RETURNING *;
 
