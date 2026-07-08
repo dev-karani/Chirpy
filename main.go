@@ -26,6 +26,18 @@ type apiConfig struct {
 	jwtsecret      string
 }
 
+type PolkaResponse struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID string `json:"user_id"`
+	} `json:"data"`
+}
+
+// post polka webhook
+func (cfg *apiConfig) handlerPostPolkaWebhook(w http.ResponseWriter, r *http.Request) {
+
+}
+
 // updateUserShape
 type UpdateUserRequest struct {
 	Email    string `json:"email"`

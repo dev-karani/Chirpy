@@ -43,7 +43,7 @@ func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp
 
 const deleteChirpByID = `-- name: DeleteChirpByID :exec
 DELETE FROM chirps
-WHERE id = $1
+WHERE id= $1
 `
 
 func (q *Queries) DeleteChirpByID(ctx context.Context, id uuid.UUID) error {
