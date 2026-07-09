@@ -36,6 +36,18 @@ type PolkaRequest struct {
 
 // post polka webhook
 func (cfg *apiConfig) handlerPostPolkaWebhook(w http.ResponseWriter, r *http.Request) {
+
+	//check apikey in header==env one
+	token, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid token")
+	}
+
+	if token != cfg.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	polkaRes := PolkaRequest{}
 

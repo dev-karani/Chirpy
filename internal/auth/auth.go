@@ -27,21 +27,21 @@ func MakeRefreshToken() (string, error) {
 	return hex.EncodeToString(key), nil //convert it to hex string
 }
 
-func GetAPIKey(headers http.Header) (string,error) {
+func GetAPIKey(headers http.Header) (string, error) {
 	authorizationString := headers.Get("Authorization")
 
 	//solve if its empty
 	if authorizationString == "" {
 		return "", errors.New("missing Authorization header")
 	}
-    
+
 	//strip the apikey prefiv
-    _, after, found := strings.Cut(authorizationString, "ApiKey ")
+	_, after, found := strings.Cut(authorizationString, "ApiKey ")
 	//if apikey prefix not found
-    if !found {
-     	return "", errors.New("authorization header must start with \"ApiKey"\")
+	if !found {
+		return "", errors.New(`authorization header must start with "ApiKey"`)
 	}
-    after = strings.TrimSpace(after)
+	after = strings.TrimSpace(after)
 	if after == "" {
 		return "", errors.New("missing token")
 	}
