@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -216,19 +217,10 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 	//get request query
 	queryAuthorID := r.URL.Query().Get("author_id")
 	queryBySort := r.URL.Query().Get("sort")
-	
 
-	//for queryBySort
+	//for queryauthorID && queryBySort
 	//check if empty
-	if queryBySort = ""{
-
-	}
-
-
-
-	//for queryauthorID
-	//check if empty
-	if queryAuthorID == "" && queryBySort == "" {
+	if queryAuthorID == "" {
 		//get all chirps
 		dbChirps, err = cfg.dbQueries.GetAllChirps(r.Context())
 	} else {
@@ -258,6 +250,17 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 			Body:      dbChirp.Body,
 			UserID:    dbChirp.UserID,
 		})
+	}
+	fmt.Println(chirps)
+	if queryBySort == "desc" {
+		sort.Slice(chirps, func(i int, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
+
 	}
 	respondWithJSON(w, 200, chirps)
 }
