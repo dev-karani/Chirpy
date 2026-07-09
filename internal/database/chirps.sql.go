@@ -88,11 +88,16 @@ func (q *Queries) GetAllChirps(ctx context.Context) ([]Chirp, error) {
 const getChirpByID = `-- name: GetChirpByID :one
 SELECT id, created_at, updated_at, body, user_id FROM chirps
 WHERE id = $1
-ORDER BY created_at ASC
+ORDER BY created_at $2
 `
 
-func (q *Queries) GetChirpByID(ctx context.Context, id uuid.UUID) (Chirp, error) {
-	row := q.db.QueryRowContext(ctx, getChirpByID, id)
+type GetChirpByIDParams struct {
+	ID      uuid.UUID   `json:"id"`
+	Column2 interface{} `json:"column_2"`
+}
+
+func (q *Queries) GetChirpByID(ctx context.Context, arg GetChirpByIDParams) (Chirp, error) {
+	row := q.db.QueryRowContext(ctx, getChirpByID, arg.ID, arg.Column2)
 	var i Chirp
 	err := row.Scan(
 		&i.ID,

@@ -214,15 +214,26 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 		err      error
 	)
 	//get request query
-	query := r.URL.Query().Get("author_id")
+	queryAuthorID := r.URL.Query().Get("author_id")
+	queryBySort := r.URL.Query().Get("sort")
+	
 
+	//for queryBySort
 	//check if empty
-	if query == "" {
+	if queryBySort = ""{
+
+	}
+
+
+
+	//for queryauthorID
+	//check if empty
+	if queryAuthorID == "" && queryBySort == "" {
 		//get all chirps
 		dbChirps, err = cfg.dbQueries.GetAllChirps(r.Context())
 	} else {
 		//turn query into valid uuid
-		authorID, err := uuid.Parse(query)
+		authorID, err := uuid.Parse(queryAuthorID)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "invalid uuid")
 		}
