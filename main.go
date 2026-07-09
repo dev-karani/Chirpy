@@ -24,6 +24,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platform       string
 	jwtsecret      string
+	polkaKey       string
 }
 
 type PolkaRequest struct {
@@ -522,7 +523,12 @@ func main() {
 	fmt.Println("PLATFORM=", os.Getenv("PLATFORM"))
 	fmt.Println("SECRET=", os.Getenv("SECRET"))
 	fmt.Println("DB_URL=", os.Getenv("DB_URL"))
+	fmt.Println("POLKA_KEY=", os.Getenv("POLKA_KEY"))
 
+	polkaKeyEnv := os.Getenv("POLKA_KEY")
+	if polkaKeyEnv == "" {
+		fmt.Println("polka key missing")
+	}
 	jwtSecret := os.Getenv("SECRET")
 	if jwtSecret == "" {
 		log.Fatal("missing jwt secret")
@@ -543,6 +549,7 @@ func main() {
 		dbQueries: database.New(db),
 		platform:  platform,
 		jwtsecret: jwtSecret,
+		polkaKey:  polkaKeyEnv,
 	}
 
 	mux := http.NewServeMux()
