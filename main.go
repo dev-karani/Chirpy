@@ -209,12 +209,36 @@ func (cfg *apiConfig) handlerChirpsGetByID(w http.ResponseWriter, r *http.Reques
 }
 
 func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	var (
+		dbChirps []database.Chirp
+		err      error
+	)
+	//get request query
+	query := r.URL.Query().Get("author_id")
+
+	//check if empty
+	if query == "" {
+		//get all chirps
+		dbChirps, err = cfg.dbQueries.GetAllChirps(r.Context())
+	} else {
+		//turn query into valid uuid
+		authorID, err := uuid.Parse(query)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "invalid uuid")
+		}
+
+		//get chirp with author id
+		dbChirps, err = cfg.dbQueries.GetChirpsByAuthorID(r.Context(), authorID)
+	}
+
+	//handle error when getting dbchirps
 	if err != nil {
-		respondWithError(w, 500, "couldnt retrieve chirps")
+		respondWithError(w, http.StatusInternalServerError, "couldnt retrieve chirp")
 		return
 	}
-	chirps := []Chirp{}
+
+	//turn chirps to shfitsize according to dbchirps
+	chirps := make([]Chirp, 0, len(dbChirps))
 	for _, dbChirp := range dbChirps {
 		chirps = append(chirps, Chirp{
 			ID:        dbChirp.ID,
