@@ -231,7 +231,7 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//get chirp with author id
-		dbChirps, err = cfg.dbQueries.GetChirpsByAuthorID(r.Context(), authorID)
+		dbChirps, _ = cfg.dbQueries.GetChirpsByAuthorID(r.Context(), authorID)
 	}
 
 	//handle error when getting dbchirps
