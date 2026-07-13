@@ -9,7 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync/atomic"
+	// "sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +20,7 @@ import (
 	database "github.com/dev-karani/chirpy/internal/database"
 )
 
-type apiConfig struct {
-	fileserverHits atomic.Int32
-	dbQueries      *database.Queries
-	platform       string
-	jwtsecret      string
-	polkaKey       string
-}
+
 
 //before refactor
 
