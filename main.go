@@ -28,6 +28,8 @@ type apiConfig struct {
 	polkaKey       string
 }
 
+//before refactor
+
 type PolkaRequest struct {
 	Event string `json:"event"`
 	Data  struct {
@@ -565,6 +567,7 @@ func cleanBody(body string) string {
 }
 
 func main() {
+	fmt.Println("Before refactor")
 	if err := godotenv.Load(); err != nil {
 		// keep going if env isn't present; tests usually provide DB_URL via environment
 		log.Printf("warning: could not load .env: %v", err)
