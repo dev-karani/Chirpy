@@ -211,4 +211,3 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		IsChirpyRed: user.IsChirpyRed,
 	})
 }
-
