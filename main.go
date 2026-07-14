@@ -2,24 +2,17 @@ package main
 
 import (
 	"database/sql"
-	// "encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
-	// "sort"
-	// "strings"
-	// "sync/atomic"
-	// "time"
-
-	// "github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
-	// "github.com/dev-karani/chirpy/internal/auth"
 	"github.com/dev-karani/chirpy/chirps"
 	database "github.com/dev-karani/chirpy/internal/database"
+	"github.com/dev-karani/chirpy/polka"
 	users "github.com/dev-karani/chirpy/users"
 )
 
@@ -66,9 +59,10 @@ func main() {
 
 	userHandler := users.NewHandler(apiCfg.dbQueries, apiCfg.jwtsecret)
 	chirpsHandler := chirps.NewHandler(apiCfg.dbQueries, apiCfg.jwtsecret)
+	polkaHandler := polka.NewHandler(apiCfg.dbQueries, apiCfg.polkaKey)
 
 	mux := http.NewServeMux()
-	registerRoutes(mux, apiCfg, userHandler, chirpsHandler)
+	registerRoutes(mux, apiCfg, userHandler, chirpsHandler, polkaHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
