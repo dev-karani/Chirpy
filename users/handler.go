@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/dev-karani/chirpy/internal/auth"
 	database "github.com/dev-karani/chirpy/internal/database"
@@ -28,7 +29,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	req := createUserRequest{}
 	if err := decoder.Decode(&req); err != nil {
-		httpAPI.RespondWithError(w, http.StatusInternalServerError, "failed to decode")
+		httpAPI.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -61,40 +62,40 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login Handler
-func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	req := loginRequest{}
 	if err := decoder.Decode(&req); err != nil {
-		respondWithError(w, 500, "Something went wrong")
+		httpAPI.RespondWithError(w, http.StatusBadRequest, "Invalid reuest body")
 		return
 	}
 
-	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), req.Email)
+	user, err := h.db.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		respondWithError(w, 401, "Incorrect email or password")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
 	match, err := auth.CheckPasswordHash(req.Password, user.HashedPassword)
 	if err != nil || !match {
-		respondWithError(w, 401, "Incorrect email or password")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
 
-	jwtToken, err := auth.MakeJWT(user.ID, cfg.jwtsecret, time.Hour)
+	jwtToken, err := auth.MakeJWT(user.ID, h.jwtSecret, time.Hour)
 	if err != nil {
-		respondWithError(w, 500, "failed to generate jwt")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "failed to generate jwt")
 		return
 	}
 
 	//refreshToken
 	refreshToken, err := auth.MakeRefreshToken()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldnt create refresh token")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "couldnt create refresh token")
 	}
 
 	now := time.Now().UTC()
 
-	_, err = cfg.dbQueries.CreateRefreshToken(
+	_, err = h.db.CreateRefreshToken(
 		r.Context(),
 		database.CreateRefreshTokenParams{
 			Token:     refreshToken,
@@ -105,11 +106,11 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldnt save refresh token")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "couldnt save refresh token")
 		return
 	}
 
-	respondWithJSON(w, 200, User{
+	httpAPI.RespondWithJSON(w, 200, User{
 		ID:           user.ID,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
@@ -122,56 +123,52 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 
 //
 
-
-func (cfg *apiConfig) HandlerRefresh(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	refreshToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "missing refresh token")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "missing refresh token")
 		return
 	}
 
-	dbToken, err := cfg.dbQueries.GetRefreshToken(r.Context(), refreshToken)
+	dbToken, err := h.db.GetRefreshToken(r.Context(), refreshToken)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "invalid refresh token")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
 
-	jwtToken, err := auth.MakeJWT(dbToken.UserID, cfg.jwtsecret, time.Hour)
+	jwtToken, err := auth.MakeJWT(dbToken.UserID, h.jwtSecret, time.Hour)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't create jwt")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "couldn't create jwt")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, RefreshResponse{
+	httpAPI.RespondWithJSON(w, http.StatusOK, RefreshResponse{
 		Token: jwtToken,
 	})
 }
 
-func (cfg *apiConfig) HandlerRevoke(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlerRevoke(w http.ResponseWriter, r *http.Request) {
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "missing refresh token")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "missing refresh token")
 		return
 	}
 
-	err = cfg.dbQueries.RevokeRefreshToken(r.Context(), token)
+	err = h.db.RevokeRefreshToken(r.Context(), token)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't revoke refresh token")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "couldn't revoke refresh token")
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-
-
-
 // handle update of password
-func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	updateReq := UpdateUserRequest{}
+	updateReq := updateUserRequest{}
 	if err := decoder.Decode(&updateReq); err != nil {
-		respondWithError(w, http.StatusBadRequest, "failed to decode")
+		httpAPI.RespondWithError(w, http.StatusBadRequest, "failed to decode")
 		return
 	}
 
@@ -179,34 +176,34 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 	//get bearer token
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "failed to get token")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "failed to get token")
 		return
 	}
 
-	authenticatedUserID, err := auth.ValidateJWT(token, cfg.jwtsecret)
+	authenticatedUserID, err := auth.ValidateJWT(token, h.jwtSecret)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "missing  or invalid token")
+		httpAPI.RespondWithError(w, http.StatusUnauthorized, "missing  or invalid token")
 		return
 	}
 	//hashedPassword
 	hashedPassword, err := auth.HashPassword(updateReq.Password)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to hash password")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
 	//call db with values
-	user, err := cfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{
+	user, err := h.db.UpdateUser(r.Context(), database.UpdateUserParams{
 		Email:          updateReq.Email,
 		HashedPassword: hashedPassword,
 		ID:             authenticatedUserID,
 	})
 
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to update user")
+		httpAPI.RespondWithError(w, http.StatusInternalServerError, "failed to update user")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, User{
+	httpAPI.RespondWithJSON(w, http.StatusOK, User{
 		ID:          user.ID,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
@@ -214,3 +211,4 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		IsChirpyRed: user.IsChirpyRed,
 	})
 }
+

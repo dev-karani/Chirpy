@@ -36,7 +36,8 @@ type RefreshResponse struct {
 }
 
 // updateUserShape
-type UpdateUserRequest struct {
+type updateUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+
