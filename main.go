@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	// "sort"
 	// "strings"
 	// "sync/atomic"
@@ -17,16 +18,12 @@ import (
 	_ "github.com/lib/pq"
 
 	// "github.com/dev-karani/chirpy/internal/auth"
+	"github.com/dev-karani/chirpy/chirps"
 	database "github.com/dev-karani/chirpy/internal/database"
 	users "github.com/dev-karani/chirpy/users"
 )
 
-
-
 //before refactor
-
-
-
 
 func main() {
 	fmt.Println("Before refactor")
@@ -67,14 +64,12 @@ func main() {
 		polkaKey:  polkaKeyEnv,
 	}
 
-userHandler := users.NewHandler(
-	apiCfg.dbQueries,
-	apicfg.jwtSecret,
-)
+	userHandler := users.NewHandler(apiCfg.dbQueries, apiCfg.jwtsecret)
+	chirpsHandler := chirps.NewHandler(apiCfg.dbQueries, apiCfg.jwtsecret)
 
 	mux := http.NewServeMux()
-	registerRoutes(mux, apiCfg)
-	
+	registerRoutes(mux, apiCfg, userHandler, chirpsHandler)
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,

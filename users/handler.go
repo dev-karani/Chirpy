@@ -147,7 +147,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) HandlerRevoke(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		httpAPI.RespondWithError(w, http.StatusUnauthorized, "missing refresh token")

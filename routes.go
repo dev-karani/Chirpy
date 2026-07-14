@@ -1,33 +1,38 @@
-package main 
+package main
 
-import(
+import (
 	"net/http"
+
+	"github.com/dev-karani/chirpy/chirps"
+	"github.com/dev-karani/chirpy/users"
 )
 
-func registerRoutes(mux *http.ServeMux,apiCfg *apiConfig){
+func registerRoutes(mux *http.ServeMux, apiCfg *apiConfig, users *users.Handler, chirps *chirps.Handler) {
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
 		http.StripPrefix("/app", http.FileServer(http.Dir("."))),
 	))
-	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefresh)
-	//create users
-	mux.HandleFunc("POST /api/users", userHandler.CreateUser)
 
-	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevoke)
-	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
+	//user
+	mux.HandleFunc("POST /api/refresh", users.Refresh)
+	mux.HandleFunc("POST /api/users", users.CreateUser)
+	mux.HandleFunc("POST /api/revoke", users.Revoke)
+	mux.HandleFunc("PUT /api/users", users.UpdateUser)
+	mux.HandleFunc("POST /api/login", users.Login)
 
-	//delete users
-	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirpByID)
-	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
+    //chirps
+	mux.HandleFunc("GET /api/chirps", chirps.GetChirp)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", chirps.GetChirpsByID)
+	mux.HandleFunc("POST /api/chirps", chirps.CreateChirps)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", chirps.GetChirpsByID)
+	
 	//a
 	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerPostPolkaWebhook)
-	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsGet)
-	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsGetByID)
-	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)
+
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	//login
-	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
