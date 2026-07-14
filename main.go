@@ -18,6 +18,7 @@ import (
 
 	// "github.com/dev-karani/chirpy/internal/auth"
 	database "github.com/dev-karani/chirpy/internal/database"
+	users "github.com/dev-karani/chirpy/users"
 )
 
 
@@ -65,6 +66,11 @@ func main() {
 		jwtsecret: jwtSecret,
 		polkaKey:  polkaKeyEnv,
 	}
+
+userHandler := users.NewHandler(
+	apiCfg.dbQueries,
+	apicfg.jwtSecret,
+)
 
 	mux := http.NewServeMux()
 	registerRoutes(mux, apiCfg)

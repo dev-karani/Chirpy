@@ -11,7 +11,7 @@ func registerRoutes(mux *http.ServeMux,apiCfg *apiConfig){
 	))
 	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefresh)
 	//create users
-	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/users", userHandler.CreateUser)
 
 	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevoke)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
